@@ -32,6 +32,7 @@ export interface JwtPayload {
     sub: string;      // user id
     email: string;
     username: string;
+    role: string;        // add role for authorization
     iat?: number;     // issued at
     exp?: number;     // expiration time
 }

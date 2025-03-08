@@ -1,18 +1,19 @@
 // src/types/request.types.ts
 
-import { User } from './user.types';
+import { Request } from 'express';
+import { JwtPayload } from './auth.types';
 
 // Extend Express Request to include user
 export interface AuthenticatedRequest extends Request {
-  user?: User;
+    user?: JwtPayload;
 }
 
 // Standard API response format
 export interface ApiResponse<T> {
-  success: boolean;
-  data?: T;
-  error?: {
-    code: string;
-    message: string;
-  };
+    success: boolean;
+    data?: T;
+    error?: {
+        code: string;
+        message: string;
+    };
 }
