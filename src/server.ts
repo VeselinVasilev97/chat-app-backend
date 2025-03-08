@@ -1,13 +1,9 @@
 import express from 'express';
-import { connectDB } from './config/database';
+import { Database } from './config/database';
 
 const app = express();
+Database.getInstance();
 
-// Connect to the database
-connectDB();
-
-// Middleware and routes setup
-// ...
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {

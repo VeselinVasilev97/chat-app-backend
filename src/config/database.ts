@@ -1,28 +1,43 @@
 import { Pool } from 'pg';
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 const dbConfig = {
-    user: 'chatuser', // replace with your database user
-    host: '192.168.1.17',
-    database: 'your_db_name', // replace with your database name
-    password: 'your_db_password', // replace with your database password
-    port: 5432,
-    schema: 'chatuser'
+    user: process.env.DB_USER,
+    host: process.env.DB_HOST,
+    database: process.env.DB_NAME,
+    password: process.env.DB_PASSWORD,
+    port: Number(process.env.DB_PORT),
+    schema: process.env.DB_SCHEMA
 };
 
-const pool = new Pool(dbConfig);
+class Database {
+    private static instance: Pool;
 
-export const connectDB = async () => {
-    try {
-        await pool.connect();
-        console.log('Database connected successfully');
-    } catch (err) {
-        if (err instanceof Error) {
-            console.error('Database connection error:', err.message);
-        } else {
-            console.error('Database connection error:', err);
+    private constructor() {}
+
+    public static async getInstance(): Promise<Pool> {
+        if (!Database.instance) {
+            Database.instance = new Pool(dbConfig);
+            try {
+                await Database.instance.connect();
+                console.log('Database connected successfully');
+            } catch (err) {
+                if (err instanceof Error) {
+                    console.error('Database connection error:', err.message);
+                } else {
+                    console.error('Database connection error:', err);
+                }
+                process.exit(1);
+            }
         }
-        process.exit(1);
+        return Database.instance;
     }
+}
+
+export const query = (text: string, params?: any[]) => {
+    return Database.getInstance().then(pool => pool.query(text, params));
 };
 
-export const query = (text: string, params?: any[]) => pool.query(text, params);
+export { Database };
