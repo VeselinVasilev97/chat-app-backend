@@ -1,13 +1,10 @@
 import { Request, Response } from 'express';
-import { AuthService } from '../services/auth.service';
 import { MessagesService } from '../services/messages/messages.service';
 
 export class MessagesController {
-    private authService: AuthService;
     private MessagesService: MessagesService;
 
     constructor() {
-        this.authService = new AuthService();
         this.MessagesService = new MessagesService();
     }
 

@@ -9,7 +9,6 @@ const messageRoutes = new MessagesController();
 // Private routes
 router.get('/messages', messageRoutes.getMessages);
 
-// Protected routes
-// router.get('/users', authMiddleware, userController.getAllUsers);
+
 
 export default router; 

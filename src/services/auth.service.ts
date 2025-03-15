@@ -1,5 +1,5 @@
 import bcrypt from 'bcrypt';
-import { query } from '../config/database';
+import { query } from '@/config/database';
 import { LoginDto, RegisterDto, AuthResponse } from '../types/auth.types';
 import { TokenService } from './token.service';
 
@@ -17,7 +17,7 @@ export class AuthService {
         }
         const hashedPassword = await bcrypt.hash(dto.password, 10);
         const result = await query(
-            'INSERT INTO chatuser.users (username, email, password) VALUES ($1, $2, $3) RETURNING id, username, email',
+            'INSERT INTO chatuser.users (username, email, password_hash) VALUES ($1, $2, $3) RETURNING user_id, username, email',
             [dto.username, dto.email, hashedPassword]
         );
         const user = result.rows[0];
@@ -33,13 +33,13 @@ export class AuthService {
     async login(dto: LoginDto): Promise<AuthResponse> {
         const result = await query('SELECT * FROM chatuser.users WHERE email = $1', [dto.email]);
         const user = result.rows[0];
-
+        
         if (!user) {
             throw new Error('Invalid credentials');
         }
 
-        // Verify password
-        const isPasswordValid = await bcrypt.compare(dto.password, user.password);
+        const isPasswordValid = await bcrypt.compare(dto.password, user.password_hash);
+        
         if (!isPasswordValid) {
             throw new Error('Invalid credentials');
         }
@@ -51,8 +51,10 @@ export class AuthService {
             role: user.role
         });
 
-        // Remove password from response
-        delete user.password;
+        delete user.password_hash;
+        delete user.last_active_at;
+        delete user.created_at;
+        delete user.updated_at;
 
         return { user, tokens };
     }

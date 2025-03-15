@@ -1,0 +1,458 @@
+// messageService.ts
+
+import { Pool } from 'pg';
+import { v4 as uuidv4 } from 'uuid';
+
+// Configure database connection
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL
+});
+
+interface Message {
+  message_id: string;
+  conversation_id: string;
+  sender_id: string;
+  content: string;
+  content_type: string;
+  sent_at: Date;
+  edited_at?: Date;
+  is_deleted: boolean;
+}
+
+interface ConversationParticipant {
+  conversation_id: string;
+  user_id: string;
+  role: string;
+  joined_at: Date;
+  last_read_message_id?: string;
+}
+
+interface Conversation {
+  conversation_id: string;
+  title?: string;
+  type: 'direct' | 'group';
+  created_at: Date;
+  updated_at: Date;
+  participants?: ConversationParticipant[];
+  last_message?: Message;
+}
+
+class MessageService {
+  // Create a new conversation
+  async createConversation(
+    type: 'direct' | 'group',
+    title: string | null,
+    participant_ids: string[],
+    creator_id: string
+  ): Promise<Conversation> {
+    const client = await pool.connect();
+    
+    try {
+      await client.query('BEGIN');
+      
+      // Create conversation
+      const conversationResult = await client.query(
+        `INSERT INTO chatuser.conversations (conversation_id, title, type)
+         VALUES ($1, $2, $3)
+         RETURNING *`,
+        [uuidv4(), title, type]
+      );
+      
+      const conversation = conversationResult.rows[0];
+      
+      // Add participants
+      const participantQueries = participant_ids.map(async (user_id) => {
+        return client.query(
+          `INSERT INTO chatuser.conversation_participants (conversation_id, user_id, role)
+           VALUES ($1, $2, $3)`,
+          [conversation.conversation_id, user_id, user_id === creator_id ? 'admin' : 'member']
+        );
+      });
+      
+      // Add creator if not already in participant_ids
+      if (!participant_ids.includes(creator_id)) {
+        participantQueries.push(
+          client.query(
+            `INSERT INTO chatuser.conversation_participants (conversation_id, user_id, role)
+             VALUES ($1, $2, $3)`,
+            [conversation.conversation_id, creator_id, 'admin']
+          )
+        );
+      }
+      
+      await Promise.all(participantQueries);
+      await client.query('COMMIT');
+      
+      return conversation;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  // Get direct conversation between two users or create if doesn't exist
+  async getOrCreateDirectConversation(
+    user_id1: string,
+    user_id2: string
+  ): Promise<Conversation> {
+    const client = await pool.connect();
+    
+    try {
+      // Check if direct conversation already exists
+      const existingConversationResult = await client.query(
+        `SELECT c.* FROM chatuser.conversations c
+         JOIN chatuser.conversation_participants p1 ON c.conversation_id = p1.conversation_id
+         JOIN chatuser.conversation_participants p2 ON c.conversation_id = p2.conversation_id
+         WHERE c.type = 'direct'
+         AND p1.user_id = $1 AND p2.user_id = $2
+         LIMIT 1`,
+        [user_id1, user_id2]
+      );
+      
+      if (existingConversationResult.rows.length > 0) {
+        return existingConversationResult.rows[0];
+      }
+      
+      // Create new direct conversation
+      return this.createConversation('direct', null, [user_id1, user_id2], user_id1);
+    } finally {
+      client.release();
+    }
+  }
+
+  // Send a message to a conversation
+  async sendMessage(
+    conversation_id: string,
+    sender_id: string,
+    content: string,
+    content_type: string = 'text'
+  ): Promise<Message> {
+    const client = await pool.connect();
+    
+    try {
+      await client.query('BEGIN');
+      
+      // Check if user is a participant in the conversation
+      const participantCheck = await client.query(
+        `SELECT * FROM chatuser.conversation_participants
+         WHERE conversation_id = $1 AND user_id = $2`,
+        [conversation_id, sender_id]
+      );
+      
+      if (participantCheck.rows.length === 0) {
+        throw new Error('User is not a participant in this conversation');
+      }
+      
+      // Insert message
+      const messageResult = await client.query(
+        `INSERT INTO chatuser.messages (message_id, conversation_id, sender_id, content, content_type)
+         VALUES ($1, $2, $3, $4, $5)
+         RETURNING *`,
+        [uuidv4(), conversation_id, sender_id, content, content_type]
+      );
+      
+      // Update the conversation's updated_at timestamp
+      await client.query(
+        `UPDATE chatuser.conversations
+         SET updated_at = CURRENT_TIMESTAMP
+         WHERE conversation_id = $1`,
+        [conversation_id]
+      );
+      
+      await client.query('COMMIT');
+      
+      return messageResult.rows[0];
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  // Get messages in a conversation with pagination
+  async getMessages(
+    conversation_id: string,
+    user_id: string,
+    limit: number = 50,
+    before_message_id?: string
+  ): Promise<Message[]> {
+    const client = await pool.connect();
+    
+    try {
+      // Check if user is a participant in the conversation
+      const participantCheck = await client.query(
+        `SELECT * FROM chatuser.conversation_participants
+         WHERE conversation_id = $1 AND user_id = $2`,
+        [conversation_id, user_id]
+      );
+      
+      if (participantCheck.rows.length === 0) {
+        throw new Error('User is not a participant in this conversation');
+      }
+      
+      // Query to get messages with pagination
+      let query = `
+        SELECT * FROM chatuser.messages
+        WHERE conversation_id = $1
+      `;
+      
+      const queryParams = [conversation_id];
+      
+      if (before_message_id) {
+        // Get sent_at timestamp of the before_message_id
+        const beforeMessageResult = await client.query(
+          `SELECT sent_at FROM chatuser.messages
+           WHERE message_id = $1`,
+          [before_message_id]
+        );
+        
+        if (beforeMessageResult.rows.length > 0) {
+          const beforeTimestamp = beforeMessageResult.rows[0].sent_at;
+          query += ` AND sent_at < $2`;
+          queryParams.push(beforeTimestamp);
+        }
+      }
+      
+      query += ` ORDER BY sent_at DESC LIMIT $${queryParams.length + 1}`;
+      queryParams.push(limit);
+      
+      const messagesResult = await client.query(query, queryParams);
+      
+      // Update last read message if messages were returned
+      if (messagesResult.rows.length > 0) {
+        const newestMessage = messagesResult.rows[0]; // Most recent message
+        
+        await client.query(
+          `UPDATE chatuser.conversation_participants
+           SET last_read_message_id = $1
+           WHERE conversation_id = $2 AND user_id = $3
+           AND (last_read_message_id IS NULL OR 
+                (SELECT sent_at FROM chatuser.messages WHERE message_id = last_read_message_id) < $4)`,
+          [newestMessage.message_id, conversation_id, user_id, newestMessage.sent_at]
+        );
+      }
+      
+      return messagesResult.rows;
+    } finally {
+      client.release();
+    }
+  }
+
+  // Mark messages as read
+  async markMessagesAsRead(
+    conversation_id: string,
+    user_id: string,
+    message_id: string
+  ): Promise<void> {
+    const client = await pool.connect();
+    
+    try {
+      // Update last read message ID
+      await client.query(
+        `UPDATE chatuser.conversation_participants
+         SET last_read_message_id = $1
+         WHERE conversation_id = $2 AND user_id = $3`,
+        [message_id, conversation_id, user_id]
+      );
+      
+      // Insert read receipts for all messages up to the given message ID
+      await client.query(
+        `INSERT INTO chatuser.read_receipts (message_id, user_id)
+         SELECT m.message_id, $1
+         FROM chatuser.messages m
+         WHERE m.conversation_id = $2
+         AND m.sent_at <= (SELECT sent_at FROM chatuser.messages WHERE message_id = $3)
+         AND m.sender_id != $1
+         AND NOT EXISTS (
+           SELECT 1 FROM chatuser.read_receipts
+           WHERE message_id = m.message_id AND user_id = $1
+         )`,
+        [user_id, conversation_id, message_id]
+      );
+    } finally {
+      client.release();
+    }
+  }
+
+  // Get user's conversations with latest message
+  async getUserConversations(user_id: string): Promise<Conversation[]> {
+    const client = await pool.connect();
+    
+    try {
+      const conversationsResult = await client.query(
+        `SELECT c.*,
+          json_agg(DISTINCT jsonb_build_object(
+            'user_id', p.user_id,
+            'role', p.role,
+            'joined_at', p.joined_at,
+            'last_read_message_id', p.last_read_message_id
+          )) as participants,
+          (SELECT row_to_json(m.*)
+           FROM chatuser.messages m
+           WHERE m.conversation_id = c.conversation_id
+           ORDER BY m.sent_at DESC
+           LIMIT 1) as last_message
+         FROM chatuser.conversations c
+         JOIN chatuser.conversation_participants p ON c.conversation_id = p.conversation_id
+         WHERE c.conversation_id IN (
+           SELECT conversation_id
+           FROM chatuser.conversation_participants
+           WHERE user_id = $1
+         )
+         GROUP BY c.conversation_id
+         ORDER BY 
+           COALESCE((SELECT sent_at FROM chatuser.messages 
+                     WHERE conversation_id = c.conversation_id 
+                     ORDER BY sent_at DESC LIMIT 1), c.created_at) DESC`,
+        [user_id]
+      );
+      
+      return conversationsResult.rows;
+    } finally {
+      client.release();
+    }
+  }
+
+  // Edit a message
+  async editMessage(
+    message_id: string,
+    user_id: string,
+    new_content: string
+  ): Promise<Message> {
+    const client = await pool.connect();
+    
+    try {
+      // Check if user is the sender of the message
+      const messageCheck = await client.query(
+        `SELECT * FROM chatuser.messages
+         WHERE message_id = $1 AND sender_id = $2`,
+        [message_id, user_id]
+      );
+      
+      if (messageCheck.rows.length === 0) {
+        throw new Error('User is not the sender of this message');
+      }
+      
+      // Check if message is deleted
+      if (messageCheck.rows[0].is_deleted) {
+        throw new Error('Cannot edit a deleted message');
+      }
+      
+      // Update message content
+      const updatedMessageResult = await client.query(
+        `UPDATE chatuser.messages
+         SET content = $1, edited_at = CURRENT_TIMESTAMP
+         WHERE message_id = $2
+         RETURNING *`,
+        [new_content, message_id]
+      );
+      
+      return updatedMessageResult.rows[0];
+    } finally {
+      client.release();
+    }
+  }
+  
+  // Delete a message (soft delete)
+  async deleteMessage(
+    message_id: string,
+    user_id: string
+  ): Promise<Message> {
+    const client = await pool.connect();
+    
+    try {
+      // Check if user is the sender of the message or an admin
+      const messageCheck = await client.query(
+        `SELECT m.*, cp.role FROM chatuser.messages m
+         JOIN chatuser.conversation_participants cp 
+         ON m.conversation_id = cp.conversation_id AND cp.user_id = $1
+         WHERE m.message_id = $2 AND (m.sender_id = $1 OR cp.role = 'admin')`,
+        [user_id, message_id]
+      );
+      
+      if (messageCheck.rows.length === 0) {
+        throw new Error('User is not authorized to delete this message');
+      }
+      
+      // Soft delete the message
+      const deletedMessageResult = await client.query(
+        `UPDATE chatuser.messages
+         SET content = NULL, is_deleted = TRUE
+         WHERE message_id = $1
+         RETURNING *`,
+        [message_id]
+      );
+      
+      return deletedMessageResult.rows[0];
+    } finally {
+      client.release();
+    }
+  }
+
+  // Add reaction to a message
+  async addReaction(
+    message_id: string,
+    user_id: string,
+    reaction_type: string
+  ): Promise<void> {
+    const client = await pool.connect();
+    
+    try {
+      // Check if message exists and user has access to it
+      const messageCheck = await client.query(
+        `SELECT m.* FROM chatuser.messages m
+         JOIN chatuser.conversation_participants cp 
+         ON m.conversation_id = cp.conversation_id
+         WHERE m.message_id = $1 AND cp.user_id = $2`,
+        [message_id, user_id]
+      );
+      
+      if (messageCheck.rows.length === 0) {
+        throw new Error('Message not found or user doesn\'t have access');
+      }
+      
+      // Insert or update reaction (using ON CONFLICT for upsert)
+      await client.query(
+        `INSERT INTO chatuser.message_reactions (reaction_id, message_id, user_id, reaction_type)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (message_id, user_id, reaction_type) DO NOTHING`,
+        [uuidv4(), message_id, user_id, reaction_type]
+      );
+    } finally {
+      client.release();
+    }
+  }
+
+  // Remove reaction from a message
+  async removeReaction(
+    message_id: string,
+    user_id: string,
+    reaction_type: string
+  ): Promise<void> {
+    const client = await pool.connect();
+    
+    try {
+      await client.query(
+        `DELETE FROM chatuser.message_reactions
+         WHERE message_id = $1 AND user_id = $2 AND reaction_type = $3`,
+        [message_id, user_id, reaction_type]
+      );
+    } finally {
+      client.release();
+    }
+  }
+
+  // Get unread message count for user
+  async getUnreadMessageCount(user_id: string): Promise<{ [conversation_id: string]: number }> {
+    const client = await pool.connect();
+    
+    try {
+      const unreadCountResult = await client.query(
+        `SELECT cp.conversation_id, 
+                COUNT(m.message_id) as unread_count
+         FROM chatuser.conversation_participants cp
+         JOIN chatuser.messages m ON cp.conversation_id = m.conversation_id
+         LEFT JOIN chatuser.read_receipts rr ON m.message_id = rr.message_id AND rr.user_id = $1

@@ -35,9 +35,9 @@ class Database {
         return Database.instance;
     }
 }
+const singleInstance = Database.getInstance();
 
-export const query = (text: string, params?: any[]) => {
-    return Database.getInstance().then(pool => pool.query(text, params));
+export const query = async (text: string, params?: any[]) => {
+    const pool = await singleInstance;
+    return await pool.query(text, params);
 };
-
-export { Database };
