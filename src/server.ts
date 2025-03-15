@@ -2,7 +2,7 @@ import express from 'express';
 import { Database } from './config/database';
 import dotenv from 'dotenv';
 import userRoutes from './routes/user.routes';
-
+import messagesRoutes from './routes/message.routes';
 // Load environment variables
 dotenv.config();
 
@@ -13,6 +13,7 @@ app.use(express.json());
 
 // Routes
 app.use('/api', userRoutes);
+app.use('/api', messagesRoutes);
 
 // Initialize database
 async function initializeApp() {
