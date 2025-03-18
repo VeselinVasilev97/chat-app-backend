@@ -23,13 +23,13 @@ export const io = new Server(server);
 
 // Routes
 app.use('/api', userRoutes);
-app.use('/api', authMiddleware, messagesRoutes);
+app.use('/api', messagesRoutes);
 
 // Initialize database
 async function initializeApp() {
     try {
         initializeWebSocket();
-        const PORT = process.env.PORT || 45456;
+        const PORT = process.env.PORT || 3000;
         server.listen(PORT, () => {
             console.log(`Server is running on port ${PORT}`);
         });

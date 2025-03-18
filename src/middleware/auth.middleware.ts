@@ -1,20 +1,20 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 
-const validateToken = (token: string, secret: string) => {
+export const validateToken = (token: string, secret: string) => {
     if (!token) return false;
-    jwt.verify(token, secret, (err, decoded) => {
-        if (err) {
-            return false;
-        }
-        return decoded;
-    });
-}
+
+    try {
+        return jwt.verify(token, secret); // Returns decoded payload if valid
+    } catch (err) {
+        return false; // Invalid token
+    }
+};
 
 
 export const authMiddleware = (req: Request, res: Response, next: NextFunction) => {
-    const accessToken = req.cookies['chat-auth-acs'];
-    const validationAccess = validateToken(accessToken, process.env.ACCESS_TOKEN_SECRET!);
+    const authCookie = req.cookies['chat-auth-cookie'];
+    const validationAccess = validateToken(authCookie, process.env.JWT_ACCESS_SECRET!);
 
     if (validationAccess) {
         // @ts-ignore
@@ -24,3 +24,4 @@ export const authMiddleware = (req: Request, res: Response, next: NextFunction) 
 
     return res.status(401).json({ message: 'Unauthorized' });
 };
+
