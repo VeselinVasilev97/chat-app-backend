@@ -5,9 +5,9 @@ export const validateToken = (token: string, secret: string) => {
     if (!token) return false;
 
     try {
-        return jwt.verify(token, secret); // Returns decoded payload if valid
+        return jwt.verify(token, secret);
     } catch (err) {
-        return false; // Invalid token
+        return false;
     }
 };
 
