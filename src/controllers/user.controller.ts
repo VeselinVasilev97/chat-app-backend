@@ -63,7 +63,6 @@ export class UserController {
         accessToken,
         process.env.JWT_ACCESS_SECRET!
       );
-      console.log(decoded);
   
       if (!decoded) {
         return res.status(401).json({ message: "Invalid or expired token" });
