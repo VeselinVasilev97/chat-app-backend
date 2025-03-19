@@ -14,7 +14,6 @@ export interface RegisterDto {
 // JWT Token structure
 export interface Tokens {
     accessToken: string;
-    refreshToken: string;
 }
 
 // Auth response when login/register is successful

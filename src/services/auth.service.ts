@@ -69,32 +69,4 @@ export class AuthService {
   }
 }
 
-// Express API Handler for setting cookies
-import { Request, Response } from "express";
 
-export async function loginHandler(req: Request, res: Response) {
-  try {
-    const authService = new AuthService();
-    const { user, tokens } = await authService.login(req.body);
-
-    res.cookie("access_token", tokens.accessToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production" ? true : false, // Disabled in dev
-      sameSite: "lax", // Prevents cross-site issues but allows subdomains
-      maxAge: 1000 * 60 * 60 * 24, // 1 day
-    });
-
-    res.cookie("refresh_token", tokens.refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production" ? true : false, // Disabled in dev
-      sameSite: "strict",
-      maxAge: 1000 * 60 * 60 * 24 * 7,
-    });
-
-    res.json({ user });
-  } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : "An unknown error occurred";
-    res.status(401).json({ message: errorMessage });
-  }
-}

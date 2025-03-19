@@ -2,8 +2,6 @@ import { io } from './server';
 
 const initializeWebSocket = () => {
     io.on("connection", (socket) => {
-        console.log(`User connected: ${socket.id}`);
-        
 
         socket.on("send_message", ({ receiverId, text }) => {
             const messageData = {
@@ -18,8 +16,6 @@ const initializeWebSocket = () => {
             
             console.log(`Private message from ${socket.id} to ${receiverId}`);
         });
-
-
         socket.on("disconnect", () => {
 
         });

@@ -15,7 +15,6 @@ export class UserController {
       const userData: RegisterDto = req.body;
       const result = await this.authService.register(userData);
       res.cookie("chat-auth-acs", result.tokens.accessToken);
-      res.cookie("chat-auth-ref", result.tokens.refreshToken);
       res.status(200).json({
         success: true,
       });
@@ -29,42 +28,50 @@ export class UserController {
     }
   };
 
-  login = async (req: Request, res: Response) => {
+  async login(req: Request, res: Response) {
     try {
-      const loginData: LoginDto = req.body;
-      const result = await this.authService.login(loginData);
-      res.status(200).json({
-        success: true,
-        data: result,
+      const authService = new AuthService();
+      const { user, tokens } = await authService.login(req.body);
+
+      res.cookie("access_token", tokens.accessToken, {
+        httpOnly: true,
+        // secure: process.env.NODE_ENV === "production" ? true : false,
+        secure: false,
+        sameSite: "lax", // Prevents cross-site issues but allows subdomains
+        maxAge: 1000 * 60 * 60 * 24, // 1 day
       });
-    } catch (error: any) {
-      res.status(401).json({
-        success: false,
-        error: {
-          message: error.message,
-        },
-      });
+      res.cookie("user", user);
+
+      return res.status(200).json({ user });
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "An unknown error occurred";
+      res.status(401).json({ message: errorMessage });
     }
-  };
+  }
 
   validateUser = async (req: Request, res: Response) => {
     try {
-      const accessToken = req.headers.authorization?.split(" ")[1];
-
+      const accessToken = req.cookies?.access_token;
+      const userCookie = req.cookies?.user;
+      
       if (!accessToken) {
         return res.status(401).json({ message: "Access token is required" });
       }
+      
       const decoded = validateToken(
         accessToken,
         process.env.JWT_ACCESS_SECRET!
       );
       console.log(decoded);
-      
+  
       if (!decoded) {
         return res.status(401).json({ message: "Invalid or expired token" });
       }
-      return res.status(200).json({ message: "Token is valid", user: decoded });
+  
+      return res.status(200).json({ message: "Token is valid", user: userCookie });
     } catch (error) {
+      console.error("Token validation error:", error);
       return res.status(500).json({ message: "Internal Server Error" });
     }
   };
