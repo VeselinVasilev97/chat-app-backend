@@ -27,7 +27,6 @@ export class UserController {
       });
     }
   };
-
   async login(req: Request, res: Response) {
     try {
       const authService = new AuthService();
@@ -49,7 +48,23 @@ export class UserController {
       res.status(401).json({ message: errorMessage });
     }
   }
-
+  async logout(req: Request, res: Response) {
+    try {
+      res.clearCookie("access_token");
+      res.clearCookie("user");
+  
+      return res.status(200).json({
+        success: true,
+        message: "Logged out successfully",
+      });
+    } catch (error) {
+      console.error("Logout error:", error);
+      return res.status(500).json({
+        success: false,
+        message: "An error occurred during logout",
+      });
+    }
+  }
   validateUser = async (req: Request, res: Response) => {
     try {
       const accessToken = req.cookies?.access_token;

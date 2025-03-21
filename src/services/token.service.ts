@@ -6,7 +6,7 @@ export class TokenService {
         const accessToken = jwt.sign(
             payload,
             process.env.JWT_ACCESS_SECRET!,
-            { expiresIn: '15m' }
+            { expiresIn: '12h' }
         );
 
         return { accessToken };

@@ -8,6 +8,7 @@ const userController = new UserController();
 // Public routes
 router.post('/register', userController.register);
 router.post('/login', userController.login);
+router.post('/logout', userController.logout);
 router.get('/validate', userController.validateUser);
 
 // Protected routes
