@@ -1,7 +1,8 @@
 import express from 'express';
 import dotenv from 'dotenv';
-import userRoutes from './routes/user.routes';
+import authRoutes from './routes/auth.routes';
 import messagesRoutes from './routes/message.routes';
+import usersRoutes from './routes/users.routes';
 import { createServer } from "http";
 import { Server } from "socket.io";
 import cors from 'cors';
@@ -27,9 +28,9 @@ export const io = new Server(server);
 
 
 // Routes
-app.use('/api', userRoutes);
+app.use('/api', authRoutes);
 app.use('/api', messagesRoutes);
-
+app.use('/users', usersRoutes);
 // Initialize database
 async function initializeApp() {
     try {

@@ -3,7 +3,7 @@ import { AuthService } from "../services/auth.service";
 import { LoginDto, RegisterDto } from "../types/auth.types";
 import { validateToken } from "@/middleware/auth.middleware";
 
-export class UserController {
+export class AuthController {
   private authService: AuthService;
 
   constructor() {
