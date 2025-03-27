@@ -29,11 +29,17 @@ const initializeWebSocket = (): void => {
     
     if (rawCookies) {
       try {
+
+
+
         const encodedData = rawCookies.split("user=")[1];
         if (!encodedData) throw new Error("User cookie not found.");
         const decodedData = decodeURIComponent(encodedData);
+
         const jsonData = decodedData.startsWith("j:") ? decodedData.slice(2) : decodedData;
+
         const userObject: UserData = JSON.parse(jsonData);
+        
         const userDataForSocket = {email:userObject.email, socketId: userSocketId };
         users.push(userDataForSocket);
       } catch (error) {

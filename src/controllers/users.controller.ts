@@ -8,35 +8,52 @@ export class UsersController {
     this.usersService = new UsersService();
   }
 
-  findUserByUsername = async (req: Request, res: Response) => {
+  sendFriendRequest = async (req: Request, res: Response) => {
     try {
-    const result = await this.usersService.getUserByEmail(req.body.email);
-    if (result.length === 0) {
-        res.status(201).json({
-          success: false,
-          user: null,
-          error: {
-            message: "User not found",
-          },
-        });
-      } else {
-        res.status(200).json({
-          success: true,
-          user: result[0],
-          error: {
-            message: "User found",
-          },
-        });
+      const { senderEmail, receiverEmail } = req.body;
+      if (!senderEmail || !receiverEmail) {
+        return res.status(400).json({ message: "Both sender and receiver emails are required" });
+      }
+      const result = await this.usersService.sendFriendRequest(senderEmail, receiverEmail);
+      res.status(200).json(result);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      res.status(500).json({ message: "Error sending friend request", error: errorMessage });
+    }
+  };
+
+  findUser = async (req: Request, res: Response) => {
+    try {
+      const { email } = req.params;
+      if (!email) {
+        return res.status(400).json({ message: "Search term is required" });
+      }
+      const user = await this.usersService.findUser(email);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      res.status(200).json(user);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      res.status(500).json({ message: "Error finding user", error: errorMessage });
+    }
+  };
+
+  findMatchingUsers = async (req: Request, res: Response) => {
+    try {
+      const { searchTerm } = req.params;
+      if (!searchTerm) {
+        return res.status(400).json({ message: "Search term is required" });
+      }
+      const users = await this.usersService.findMatchingUsers(searchTerm);
+      if(users.length > 0){
+        res.status(200).json(users);
+      }else{
+        res.status(201).json(users);
       }
     } catch (error) {
-      res.status(500).json({
-        success: true,
-        user: {},
-        error: {
-          message: "User found",
-        },
-      });
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      res.status(500).json({ message: "Error finding matching users", error: errorMessage });
     }
-
   };
 }
