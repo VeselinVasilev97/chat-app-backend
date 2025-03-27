@@ -30,7 +30,7 @@ export const io = new Server(server);
 // Routes
 app.use('/api', authRoutes);
 app.use('/api', messagesRoutes);
-app.use('/users', usersRoutes);
+app.use('/api', usersRoutes);
 // Initialize database
 async function initializeApp() {
     try {

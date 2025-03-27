@@ -30,7 +30,6 @@ export class UsersService {
       throw error;
     }
   }
-
   async findUser(userId: string): Promise<User | null> {
     try {
       const result = await query(
@@ -55,4 +54,29 @@ export class UsersService {
       throw error;
     }
   }
+  async getAllFriends(userId: string): Promise<User[]> {
+    try {
+      const sql = `
+        SELECT u.user_id, u.username, u.email
+        FROM chatuser.friendships f
+        JOIN chatuser.users u 
+          ON u.user_id = 
+            CASE 
+              WHEN f.user_id_1 = $1 THEN f.user_id_2 
+              ELSE f.user_id_1 
+            END
+        WHERE (f.user_id_1 = $1 OR f.user_id_2 = $1)
+        AND f.status = 'accepted'
+      `;
+  
+      const result = await query(sql, [userId]);
+      
+      return result.rows;
+    } catch (error) {
+      console.error("Error fetching friends:", error);
+      throw new Error("Failed to retrieve friends");
+    }
+  }
 }
+
+

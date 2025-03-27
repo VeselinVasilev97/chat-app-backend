@@ -12,13 +12,21 @@ export class UsersController {
     try {
       const { senderEmail, receiverEmail } = req.body;
       if (!senderEmail || !receiverEmail) {
-        return res.status(400).json({ message: "Both sender and receiver emails are required" });
+        return res
+          .status(400)
+          .json({ message: "Both sender and receiver emails are required" });
       }
-      const result = await this.usersService.sendFriendRequest(senderEmail, receiverEmail);
+      const result = await this.usersService.sendFriendRequest(
+        senderEmail,
+        receiverEmail
+      );
       res.status(200).json(result);
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Unknown error";
-      res.status(500).json({ message: "Error sending friend request", error: errorMessage });
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error";
+      res
+        .status(500)
+        .json({ message: "Error sending friend request", error: errorMessage });
     }
   };
 
@@ -34,8 +42,11 @@ export class UsersController {
       }
       res.status(200).json(user);
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Unknown error";
-      res.status(500).json({ message: "Error finding user", error: errorMessage });
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error";
+      res
+        .status(500)
+        .json({ message: "Error finding user", error: errorMessage });
     }
   };
 
@@ -46,14 +57,36 @@ export class UsersController {
         return res.status(400).json({ message: "Search term is required" });
       }
       const users = await this.usersService.findMatchingUsers(searchTerm);
-      if(users.length > 0){
+      if (users.length > 0) {
         res.status(200).json(users);
-      }else{
+      } else {
         res.status(201).json(users);
       }
     } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error";
+      res
+        .status(500)
+        .json({ message: "Error finding matching users", error: errorMessage });
+    }
+  };
+
+  getAllFriends = async (req: Request, res: Response) => {
+    try {
+      const userData = req.cookies?.user;
+  
+      if (!userData || !userData.user_id) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      const friendsList = await this.usersService.getAllFriends(userData.user_id);
+      if (friendsList.length > 0) {
+        return res.status(200).json(friendsList);
+      } else {
+        return res.status(200).json({ message: "No friends found", friends: [] });
+      }
+    } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Unknown error";
-      res.status(500).json({ message: "Error finding matching users", error: errorMessage });
+      return res.status(500).json({ message: "Error retrieving friends list", error: errorMessage });
     }
   };
 }

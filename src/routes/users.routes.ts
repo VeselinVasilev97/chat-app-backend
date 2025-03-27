@@ -6,7 +6,7 @@ const router = Router();
 const usersController = new UsersController();
 
 router.post('/friend-request', usersController.sendFriendRequest);
-
+router.get('/users/friends', usersController.getAllFriends);
 router.get('/user/:email', usersController.findUser);
 
 router.get('/search/:searchTerm', usersController.findMatchingUsers);
