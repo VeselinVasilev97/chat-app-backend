@@ -7,7 +7,7 @@ export enum UserRole {
 
 // Complete user model (for database)
 export interface User {
-  id: string;
+  user_id: string;
   username: string;
   email: string;
   password: string;  // hashed password

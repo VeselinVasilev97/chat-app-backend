@@ -1,5 +1,6 @@
 import { Socket } from "socket.io";
 import { io } from "./server";
+import { UsersService } from "./services/users.service";
 
 interface MessageData {
   id: string;
@@ -7,6 +8,7 @@ interface MessageData {
   text: string;
   timestamp: string;
 }
+
 interface UserData {
   user_id: string;
   username: string;
@@ -14,74 +16,99 @@ interface UserData {
   profile_picture_url: string | null;
   status: string;
 }
+
 interface ActiveUsers {
-  email: string;
+  userId: string;
+  username: string;
   socketId: string;
 }
-let users: ActiveUsers[] = [];
+
+let activeUsers: ActiveUsers[] = [];
 
 const initializeWebSocket = (): void => {
-  io.on("connection", (socket: Socket) => {
+  io.on("connection", async (socket: Socket) => {
     const rawCookies: string | undefined = socket.handshake.headers.cookie;
     const userSocketId = socket.id;
-    console.log(`User CONNECTED: ${socket.id}`);
+
+    const userService = new UsersService();
 
     if (rawCookies) {
       try {
         const encodedData = rawCookies.split("user=")[1];
         if (!encodedData) throw new Error("User cookie not found.");
         const decodedData = decodeURIComponent(encodedData);
-        const jsonData = decodedData.startsWith("j:")
-          ? decodedData.slice(2)
-          : decodedData;
+        const jsonData = decodedData.startsWith("j:") ? decodedData.slice(2) : decodedData;
         const userObject: UserData = JSON.parse(jsonData);
 
+        // Add user to activeUsers list
         const userDataForSocket = {
-          email: userObject.email,
+          userId: userObject.user_id,
+          username: userObject.username,
           socketId: userSocketId,
         };
+        activeUsers.push(userDataForSocket);
 
-        users.push(userDataForSocket);
-        socket.emit("active_users", users);
-        io.emit("update_active_users", users);
+        // Notify all users about the status update
+        updateFriendsStatusForAllUsers(userService);
+
       } catch (error) {
-        console.error("Error parsing cookies:", error);
+        console.error("Error parsing cookies or fetching friends:", error);
       }
     } else {
       console.log("No cookies found in the handshake headers.");
     }
 
-    socket.on(
-      "send_message",
-      ({ receiverId, text }: { receiverId: string; text: string }) => {
-        if (!receiverId || !text) {
-          console.warn("Invalid message: Missing receiverId or text.");
-          return;
-        }
-
-        const messageData: MessageData = {
-          id: Date.now().toString(),
-          senderId: socket.id,
-          text,
-          timestamp: new Date().toISOString(),
-        };
-
-        socket.to(receiverId).emit("new_message", messageData);
-        console.log(`Private message from ${socket.id} to ${receiverId}`);
+    socket.on("send_message", ({ receiverId, text }: { receiverId: string; text: string }) => {
+      if (!receiverId || !text) {
+        console.warn("Invalid message: Missing receiverId or text.");
+        return;
       }
-    );
+
+      const messageData: MessageData = {
+        id: Date.now().toString(),
+        senderId: socket.id,
+        text,
+        timestamp: new Date().toISOString(),
+      };
+
+      socket.to(receiverId).emit("new_message", messageData);
+      console.log(`Private message from ${socket.id} to ${receiverId}`);
+    });
 
     socket.on("disconnect", () => {
       console.log(`User DISCONNECTED: ${socket.id}`);
 
-      const index = users.findIndex((user) => user.socketId === socket.id);
+      // Remove the user from activeUsers
+      const index = activeUsers.findIndex((user) => user.socketId === socket.id);
       if (index !== -1) {
-        users.splice(index, 1);
+        activeUsers.splice(index, 1);
       }
 
-      io.emit("update_active_users", users);
+      // Notify all users about the status update
+      updateFriendsStatusForAllUsers(userService);
     });
   });
+};
+
+/**
+ * Sends updated friends list with statuses to all active users.
+ */
+const updateFriendsStatusForAllUsers = async (userService: UsersService) => {
+  for (const activeUser of activeUsers) {
+    try {
+      const currentUserFriends = await userService.getAllFriends(activeUser.userId);
+
+      const friendsWithStatus = currentUserFriends.map((friend) => ({
+        ...friend,
+        isOnline: activeUsers.some((active) => active.userId === friend.user_id),
+      }));
+
+      // Send updated friend list to the user
+      io.to(activeUser.socketId).emit("friendsListWithStatuses", friendsWithStatus);
+    } catch (error) {
+      console.error(`Error updating friend list for user ${activeUser.userId}:`, error);
+    }
+  }
 };
 
 export default initializeWebSocket;

@@ -11,25 +11,6 @@ interface FriendshipResponse {
 }
 
 export class UsersService {
-  async sendFriendRequest(currentUserEmail: string, recipientEmail: string): Promise<FriendshipResponse> {
-    try {
-      if (currentUserEmail === recipientEmail) {
-        throw new Error("Cannot send request to yourself");
-      }
-
-      return {
-        friendship_id: 123123,
-        requester_email: "dust9722@gmail.com",
-        recipient_email: "test@test.com",
-        status: "pending",
-        created_at: new Date(),
-        updated_at: new Date(),
-      };
-    } catch (error) {
-      console.error('Error sending friend request:', error);
-      throw error;
-    }
-  }
   async findUser(userId: string): Promise<User | null> {
     try {
       const result = await query(
@@ -75,6 +56,71 @@ export class UsersService {
     } catch (error) {
       console.error("Error fetching friends:", error);
       throw new Error("Failed to retrieve friends");
+    }
+  }
+  async sendFriendRequest(senderId: string, receiverId: string): Promise<void> {
+    try {
+      const sql = `
+        INSERT INTO chatuser.friendships (user_id_1, user_id_2, status)
+        VALUES ($1, $2, 'pending')
+        ON CONFLICT (user_id_1, user_id_2) DO NOTHING;
+      `;
+  
+      await query(sql, [senderId, receiverId]);
+    } catch (error) {
+      console.error("Error sending friend request:", error);
+      throw new Error("Failed to send friend request");
+    }
+  }
+  async acceptFriendRequest(userId: string, senderId: string): Promise<void> {
+    try {
+      const sql = `
+        UPDATE chatuser.friendships
+        SET status = 'accepted'
+        WHERE user_id_1 = $2 AND user_id_2 = $1 AND status = 'pending';
+      `;
+  
+      const result = await query(sql, [userId, senderId]);
+  
+      if (result.rowCount === 0) {
+        throw new Error("No pending friend request found");
+      }
+    } catch (error) {
+      console.error("Error accepting friend request:", error);
+      throw new Error("Failed to accept friend request");
+    }
+  }
+  async declineFriendRequest(userId: string, senderId: string): Promise<void> {
+    try {
+      const sql = `
+        DELETE FROM chatuser.friendships
+        WHERE user_id_1 = $2 AND user_id_2 = $1 AND status = 'pending';
+      `;
+  
+      const result = await query(sql, [userId, senderId]);
+  
+      if (result.rowCount === 0) {
+        throw new Error("No pending friend request found");
+      }
+    } catch (error) {
+      console.error("Error declining friend request:", error);
+      throw new Error("Failed to decline friend request");
+    }
+  }
+  async getFriendshipRequests(userId: string): Promise<User[]> {
+    try {
+      const sql = `
+        SELECT u.user_id, u.username, u.email
+        FROM chatuser.friendships f
+        JOIN chatuser.users u ON u.user_id = f.user_id_1
+        WHERE f.user_id_2 = $1 AND f.status = 'pending';
+      `;
+  
+      const result = await query(sql, [userId]);
+      return result.rows;
+    } catch (error) {
+      console.error("Error fetching pending friend requests:", error);
+      throw new Error("Failed to retrieve pending requests");
     }
   }
 }
