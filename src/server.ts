@@ -8,41 +8,54 @@ import { Server } from "socket.io";
 import cors from 'cors';
 import initializeWebSocket from './websocket';
 import cookieParser from 'cookie-parser';
-// import {authMiddleware} from './middleware/auth.middleware';
+
 // Load environment variables
 dotenv.config();
 const app = express();
 const server = createServer(app);
 
-//allow all origins
+// Allow all origins
 app.use(cors({
-    origin: 'http://localhost:5173',
-    credentials: true  // This is important for cookies
-  }));
+  origin: 'http://localhost:5173',
+  credentials: true  // Important for cookies
+}));
 app.use(express.json());
 app.use(cookieParser());
 
-// Initialize Socket.IO with the HTTP server
-export const io = new Server(server);
-
-
+// Initialize Socket.IO with custom options
+export const io = new Server(server, {
+  cors: {
+    origin: 'http://localhost:5173', // Make sure this is your frontend URL
+    credentials: true  // Important for cookie handling
+  },
+  pingTimeout: 20000,     // Set to 5 seconds for fast disconnection detection
+  pingInterval: 2500,    // Set to 2.5 seconds for sending pings
+  transports: ['websocket', 'polling'], // Keep both options for fallback
+  connectionStateRecovery: {
+    // the backup duration of the sessions and the packets
+    maxDisconnectionDuration: 2 * 60 * 1000,
+    // whether to skip middlewares upon successful recovery
+    skipMiddlewares: true,
+  },
+});
 
 // Routes
 app.use('/api', authRoutes);
 app.use('/api', messagesRoutes);
 app.use('/api', usersRoutes);
-// Initialize database
+
+// Initialize database and start server
 async function initializeApp() {
-    try {
-        initializeWebSocket();
-        const PORT = process.env.PORT || 3000;
-        server.listen(PORT, () => {
-            console.log(`Server is running on port ${PORT}`);
-        });
-    } catch (error) {
-        console.error('Failed to initialize app:', error);
-        process.exit(1);
-    }
+  try {
+    initializeWebSocket();
+    const PORT = process.env.PORT || 3000;
+    server.listen(PORT, () => {
+      console.log(`Server is running on port ${PORT}`);
+    });
+  } catch (error) {
+    console.error('Failed to initialize app:', error);
+    process.exit(1);
+  }
 }
 
 initializeApp();
