@@ -25,13 +25,14 @@ interface ActiveUsers {
 
 let activeUsers: ActiveUsers[] = [];
 
+const userService = new UsersService();
+
 const initializeWebSocket = (): void => {
   io.on("connection", async (socket: Socket) => {
     const rawCookies: string | undefined = socket.handshake.headers.cookie;
     const userSocketId = socket.id;
     console.log("USER CONNECTED: ", userSocketId);
 
-    const userService = new UsersService();
 
     if (rawCookies) {
       try {
@@ -65,6 +66,7 @@ const initializeWebSocket = (): void => {
         console.error("Error parsing cookies or fetching friends:", error);
       }
     } else {
+      return
       console.log("No cookies found in the handshake headers.");
     }
 
