@@ -8,6 +8,7 @@ import { Server } from "socket.io";
 import cors from 'cors';
 import initializeWebSocket from './websocket';
 import cookieParser from 'cookie-parser';
+import LOG_COLORS from './utils/general';
 
 // Load environment variables
 dotenv.config();
@@ -50,7 +51,7 @@ async function initializeApp() {
     initializeWebSocket();
     const PORT = process.env.PORT || 3000;
     server.listen(PORT, () => {
-      console.log(`Server is running on port ${PORT}`);
+      console.log(LOG_COLORS.green, `Server is running on port ${PORT}`);
     });
   } catch (error) {
     console.error('Failed to initialize app:', error);

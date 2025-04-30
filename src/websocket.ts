@@ -29,9 +29,10 @@ const userService = new UsersService();
 
 const initializeWebSocket = (): void => {
   io.on("connection", async (socket: Socket) => {
+    console.log("socket is: ", socket.connected)
     const rawCookies: string | undefined = socket.handshake.headers.cookie;
     const userSocketId = socket.id;
-    console.log("USER CONNECTED: ", userSocketId);
+    //console.log("USER CONNECTED: ", userSocketId);
 
 
     if (rawCookies) {
@@ -58,7 +59,7 @@ const initializeWebSocket = (): void => {
 
         // Add the updated socket entry
         activeUsers.push(userDataForSocket);
-        console.log(`activeUsers:`,activeUsers);
+        //console.log(`activeUsers:`,activeUsers);
 
         // Notify all users about the status update
         updateFriendsStatusForAllUsers(userService);
@@ -66,8 +67,8 @@ const initializeWebSocket = (): void => {
         console.error("Error parsing cookies or fetching friends:", error);
       }
     } else {
-      return
       console.log("No cookies found in the handshake headers.");
+      return
     }
 
     socket.on(
