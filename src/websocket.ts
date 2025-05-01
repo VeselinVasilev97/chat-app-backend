@@ -1,11 +1,12 @@
 import { Socket } from "socket.io";
 import { io } from "./server";
 import { UsersService } from "./services/users.service";
+import { MessagesService } from "./services/messages/messages.service";
 
 interface MessageData {
   id: string;
-  senderId: string;
-  text: string;
+  sender_id: string;
+  content: string;
   timestamp: string;
 }
 
@@ -26,14 +27,14 @@ interface ActiveUsers {
 let activeUsers: ActiveUsers[] = [];
 
 const userService = new UsersService();
+const messagesService = new MessagesService();
 
 const initializeWebSocket = (): void => {
   io.on("connection", async (socket: Socket) => {
-    console.log("socket is: ", socket.connected)
+    console.log("socket is: ", socket.connected);
     const rawCookies: string | undefined = socket.handshake.headers.cookie;
     const userSocketId = socket.id;
     //console.log("USER CONNECTED: ", userSocketId);
-
 
     if (rawCookies) {
       try {
@@ -68,26 +69,43 @@ const initializeWebSocket = (): void => {
       }
     } else {
       console.log("No cookies found in the handshake headers.");
-      return
+      return;
     }
 
     socket.on(
       "send_message",
-      ({ receiverId, text }: { receiverId: string; text: string }) => {
-        if (!receiverId || !text) {
-          console.warn("Invalid message: Missing receiverId or text.");
+      ({ sender_id,receiver_id, content }: { sender_id: string; receiver_id: string; content: string }) => {
+        if (!receiver_id || !content || !sender_id) {
+          console.warn("Invalid message: Missing receiver_id or text.");
           return;
         }
 
         const messageData: MessageData = {
           id: Date.now().toString(),
-          senderId: socket.id,
-          text,
+          sender_id: sender_id,
+          content,
           timestamp: new Date().toISOString(),
         };
+        const receiver = activeUsers.find((user) => user.userId === receiver_id);
+        const receiverSocketId = receiver ? receiver.socketId : null;
 
-        socket.to(receiverId).emit("new_message", messageData);
-        console.log(`Private message from ${socket.id} to ${receiverId}`);
+     
+        if(!receiverSocketId) {
+          messagesService.saveMessage(sender_id, receiver_id, content, "text");
+        }else{
+          messagesService.saveMessage(sender_id, receiver_id, content, "text");
+          socket.to(receiverSocketId).emit("new_message", messageData);
+        }
+        
+        // const result = messagesService.saveMessage(sender_id, receiver_id, content, "text");
+        // console.log('result: ', result);
+        
+        // if(result === null) {
+        //   // Handle error if needed
+        //   console.error("Error saving message to the database.");
+        // }else{
+        //   socket.to(receiver_id).emit("new_message", messageData);
+        // }
       }
     );
 

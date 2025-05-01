@@ -1,4 +1,4 @@
-import { Pool } from 'pg';
+import { Pool, PoolClient } from 'pg';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -9,7 +9,7 @@ const dbConfig = {
     database: process.env.DB_NAME,
     password: process.env.DB_PASSWORD,
     port: Number(process.env.DB_PORT),
-    schema: process.env.DB_SCHEMA
+    // schema is not a native option for Pool config; set it in your queries or use `SET search_path`
 };
 
 class Database {
@@ -35,9 +35,29 @@ class Database {
         return Database.instance;
     }
 }
+
 const singleInstance = Database.getInstance();
 
+// Simple query wrapper
 export const query = async (text: string, params?: any[]) => {
     const pool = await singleInstance;
     return await pool.query(text, params);
+};
+
+// Transaction support
+export const withTransaction = async <T>(callback: (client: PoolClient) => Promise<T>): Promise<T | null> => {
+    const pool = await singleInstance;
+    const client = await pool.connect();
+
+    try {
+        await client.query('BEGIN');
+        const result = await callback(client);
+        await client.query('COMMIT');
+        return result;
+    } catch (error) {
+        await client.query('ROLLBACK');
+        return null;
+    } finally {
+        client.release();
+    }
 };

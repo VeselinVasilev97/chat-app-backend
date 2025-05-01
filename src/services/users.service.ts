@@ -38,7 +38,7 @@ export class UsersService {
   async getAllFriends(userId: string): Promise<User[]> {
     try {
       const sql = `
-        SELECT u.user_id, u.username, u.email
+        SELECT u.user_id, u.username, u.email, u.profile_picture_url
         FROM chatuser.friendships f
         JOIN chatuser.users u 
           ON u.user_id = 
