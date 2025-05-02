@@ -1,6 +1,8 @@
-import { query,withTransaction } from '../../config/database';
+import { query, withTransaction } from '../../config/database';
 import { User } from '../../types/user.types';
 import { Conversation, DirectMessage, MessageType } from '../../types/messages.types';
+import { PoolClient } from 'pg'; // for client typing
+
 export class MessagesService {
     async getAllMessages(): Promise<Omit<User, 'password'>[]> {
         const result = await query(
@@ -9,15 +11,62 @@ export class MessagesService {
         return result.rows;
     }
 
-    async saveMessage(senderId:string,receiverId:string,content:string,content_type:MessageType): Promise<void | null> {
+    async saveMessage(
+        senderId: string,
+        receiverId: string,
+        content: string,
+        content_type: MessageType
+    ): Promise<void | null> {
         const result = await withTransaction(async (client) => {
-            const conversationResult = await client.query('INSERT INTO chatuser.conversations');
-            const conversationId = conversationResult.rows[0].conversation_id;
-            await client.query('INSERT INTO chatuser.conversations_participants (conversationId,user_id) VALUES($1)', [conversationId,[senderId,receiverId]]);
-            await client.query('INSERT INTO chatuser.messages (conversation_id,sender_id,content,content_type) VALUES($1,$2,$3,$4)', [conversationId,senderId,content,content_type]);
+            let conversationId = await this._getExistingConversation(senderId, receiverId, client);
+
+            if (!conversationId) {
+                const conversationResult = await client.query(
+                    'INSERT INTO chatuser.conversations DEFAULT VALUES RETURNING *'
+                );
+                conversationId = conversationResult.rows[0].conversation_id;
+
+                await client.query(
+                    'INSERT INTO chatuser.conversation_participants (conversation_id, user_id) VALUES ($1, $2)',
+                    [conversationId, senderId]
+                );
+                await client.query(
+                    'INSERT INTO chatuser.conversation_participants (conversation_id, user_id) VALUES ($1, $2)',
+                    [conversationId, receiverId]
+                );
+            }
+
+            await client.query(
+                'INSERT INTO chatuser.messages (conversation_id, sender_id, content, content_type) VALUES ($1, $2, $3, $4)',
+                [conversationId, senderId, content, content_type]
+            );
         });
+
         return result;
     }
-} 
 
+    // 🔒 Private helper to get existing conversation
+    private async _getExistingConversation(
+        userId1: string,
+        userId2: string,
+        client?: PoolClient
+    ): Promise<string | null> {
+        const sqlQuery = `SELECT cp.conversation_id
+        FROM chatuser.conversation_participants cp
+        WHERE cp.user_id IN ($1, $2)
+        GROUP BY cp.conversation_id
+        HAVING COUNT(*) = 2 AND COUNT(DISTINCT cp.user_id) = 2`;
+        const sqlParams = [userId1, userId2];
+        const result = client
+            ? await client.query(
+                sqlQuery,
+                sqlParams
+            )
+            : await query(
+                sqlQuery,
+                sqlParams
+            );
 
+        return result.rows.length > 0 ? result.rows[0].conversation_id : null;
+    }
+}

@@ -56,6 +56,7 @@ export const withTransaction = async <T>(callback: (client: PoolClient) => Promi
         return result;
     } catch (error) {
         await client.query('ROLLBACK');
+        console.log('Transaction error:', error);
         return null;
     } finally {
         client.release();

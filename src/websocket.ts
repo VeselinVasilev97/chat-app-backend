@@ -74,7 +74,7 @@ const initializeWebSocket = (): void => {
 
     socket.on(
       "send_message",
-      ({ sender_id,receiver_id, content }: { sender_id: string; receiver_id: string; content: string }) => {
+      async ({ sender_id,receiver_id, content }: { sender_id: string; receiver_id: string; content: string }) => {
         if (!receiver_id || !content || !sender_id) {
           console.warn("Invalid message: Missing receiver_id or text.");
           return;
@@ -91,9 +91,9 @@ const initializeWebSocket = (): void => {
 
      
         if(!receiverSocketId) {
-          messagesService.saveMessage(sender_id, receiver_id, content, "text");
+          await messagesService.saveMessage(sender_id, receiver_id, content, "text");
         }else{
-          messagesService.saveMessage(sender_id, receiver_id, content, "text");
+          await messagesService.saveMessage(sender_id, receiver_id, content, "text");
           socket.to(receiverSocketId).emit("new_message", messageData);
         }
         
