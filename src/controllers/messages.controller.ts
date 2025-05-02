@@ -10,18 +10,12 @@ export class MessagesController {
 
     getMessages = async (req: Request, res: Response) => {
         try {
-            const users = await this.MessagesService.getAllMessages();
-            res.status(200).json({
-                success: true,
-                data: users
-            });
+            const messages = await this.MessagesService.getAllMessages(req.params.senderId, req.params.receiverId);
+            res.status(200).json(
+                messages
+            );
         } catch (error: any) {
-            res.status(500).json({
-                success: false,
-                error: {
-                    message: error.message
-                }
-            });
+            res.status(500).json([]);
         }
     };
 } 

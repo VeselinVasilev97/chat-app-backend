@@ -7,7 +7,7 @@ const router = Router();
 const messageRoutes = new MessagesController();
 
 // Private routes
-router.get('/messages', messageRoutes.getMessages);
+router.get('/messages/:senderId/:receiverId', messageRoutes.getMessages);
 
 
 

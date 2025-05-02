@@ -4,11 +4,31 @@ import { Conversation, DirectMessage, MessageType } from '../../types/messages.t
 import { PoolClient } from 'pg'; // for client typing
 
 export class MessagesService {
-    async getAllMessages(): Promise<Omit<User, 'password'>[]> {
+    async getAllMessages(sender_id:string,receiver_id:string): Promise<any> {
+        let conversationId = await this._getExistingConversation(sender_id, receiver_id);
+        console.log(conversationId);
+
         const result = await query(
-            'SELECT id, username, email, role, created_at, updated_at FROM chatuser.users'
+            'SELECT content,content_type,sender_id FROM chatuser.messages where conversation_id = $1 and is_deleted = false ORDER BY sent_at DESC LIMIT 100',
+            [conversationId]
         );
-        return result.rows;
+        console.log(result);
+
+        if (result.rows.length === 0) {
+            return [];
+        }
+
+        
+        const messages = result.rows.map((row) => {
+            return {
+                content: row.content,
+                content_type: row.content_type,
+                sender_id: row.sender_id,
+                receiver_id: sender_id === row.sender_id ? receiver_id : sender_id,
+            };
+        });
+
+        return messages;
     }
 
     async saveMessage(
