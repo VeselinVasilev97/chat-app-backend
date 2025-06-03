@@ -32,11 +32,11 @@ export class UsersController {
 
   findUser = async (req: Request, res: Response) => {
     try {
-      const { email } = req.params;
-      if (!email) {
+      const { userId } = req.params;
+      if (!userId) {
         return res.status(400).json({ message: "Search term is required" });
       }
-      const user = await this.usersService.findUser(email);
+      const user = await this.usersService.findUser(userId);
       if (!user) {
         return res.status(404).json({ message: "User not found" });
       }

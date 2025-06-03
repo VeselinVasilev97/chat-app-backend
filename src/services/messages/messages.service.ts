@@ -1,30 +1,39 @@
 import { query, withTransaction } from '../../config/database';
-import { User } from '../../types/user.types';
-import { Conversation, DirectMessage, MessageType } from '../../types/messages.types';
+import { MessageType } from '../../types/messages.types';
 import { PoolClient } from 'pg'; // for client typing
 
 export class MessagesService {
     async getAllMessages(sender_id:string,receiver_id:string): Promise<any> {
         let conversationId = await this._getExistingConversation(sender_id, receiver_id);
-        console.log(conversationId);
-
         const result = await query(
-            'SELECT content,content_type,sender_id FROM chatuser.messages where conversation_id = $1 and is_deleted = false ORDER BY sent_at DESC LIMIT 100',
+            'SELECT message_id,content,content_type,sender_id,sent_at FROM chatuser.messages where conversation_id = $1 and is_deleted = false ORDER BY sent_at ASC LIMIT 100',
             [conversationId]
         );
-        console.log(result);
-
+        
         if (result.rows.length === 0) {
             return [];
         }
-
         
         const messages = result.rows.map((row) => {
+            const sent_at = new Date(row.sent_at);
+            const formattedSentDate = sent_at.toLocaleString('en-US', {
+              timeZone: 'UTC',
+              year: 'numeric',
+              month: '2-digit',
+              day: '2-digit',
+              hour: '2-digit',
+              minute: '2-digit',
+            });
+            function removeAmPm(dateStr: string): string {
+                return dateStr.replace(/\s?(AM|PM)$/i, '');
+              }
             return {
+                message_id: row.message_id,
                 content: row.content,
                 content_type: row.content_type,
                 sender_id: row.sender_id,
                 receiver_id: sender_id === row.sender_id ? receiver_id : sender_id,
+                sent_at: removeAmPm(formattedSentDate)
             };
         });
 
