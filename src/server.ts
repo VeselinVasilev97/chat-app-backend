@@ -17,7 +17,7 @@ const server = createServer(app);
 
 // Allow all origins
 app.use(cors({
-  origin: ["http://192.168.1.3:5173"], // Add your frontend URL here
+  origin: ["http://localhost:5173"], // Add your frontend URL here
   credentials: true  // Important for cookies
 }));
 app.use(express.json());
@@ -26,7 +26,7 @@ app.use(cookieParser());
 // Initialize Socket.IO with custom options
 export const io = new Server(server, {
   cors: {
-    origin: 'http://192.168.1.3:5173', // Make sure this is your frontend URL
+    origin: 'http://localhost:5173', // Make sure this is your frontend URL
     credentials: true  // Important for cookie handling
   },
   pingTimeout: 20000,     // Set to 5 seconds for fast disconnection detection

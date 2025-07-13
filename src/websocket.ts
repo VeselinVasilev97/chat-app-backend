@@ -2,6 +2,7 @@ import { Socket } from "socket.io";
 import { io } from "./server";
 import { UsersService } from "./services/users.service";
 import { MessagesService } from "./services/messages/messages.service";
+import { User } from "./types/user.types";
 
 interface MessageData {
   id: string;
@@ -31,7 +32,6 @@ const messagesService = new MessagesService();
 
 const initializeWebSocket = (): void => {
   io.on("connection", async (socket: Socket) => {
-    console.log("socket is: ", socket.connected);
     const rawCookies: string | undefined = socket.handshake.headers.cookie;
     const userSocketId = socket.id;
     //console.log("USER CONNECTED: ", userSocketId);
@@ -63,6 +63,7 @@ const initializeWebSocket = (): void => {
         //console.log(`activeUsers:`,activeUsers);
 
         // Notify all users about the status update
+
         updateFriendsStatusForAllUsers(userService);
       } catch (error) {
         console.error("Error parsing cookies or fetching friends:", error);
@@ -74,7 +75,7 @@ const initializeWebSocket = (): void => {
 
     socket.on(
       "send_message",
-      async ({ sender_id,receiver_id, content }: { sender_id: string; receiver_id: string; content: string }) => {
+      async ({ sender_id, receiver_id, content }: { sender_id: string; receiver_id: string; content: string }) => {
         if (!receiver_id || !content || !sender_id) {
           console.warn("Invalid message: Missing receiver_id or text.");
           return;
@@ -89,25 +90,20 @@ const initializeWebSocket = (): void => {
         const receiver = activeUsers.find((user) => user.userId === receiver_id);
         const receiverSocketId = receiver ? receiver.socketId : null;
 
-     
-        if(!receiverSocketId) {
+
+        if (!receiverSocketId) {
           await messagesService.saveMessage(sender_id, receiver_id, content, "text");
-        }else{
+        } else {
           await messagesService.saveMessage(sender_id, receiver_id, content, "text");
           socket.to(receiverSocketId).emit("new_message", messageData);
         }
-        
-        // const result = messagesService.saveMessage(sender_id, receiver_id, content, "text");
-        // console.log('result: ', result);
-        
-        // if(result === null) {
-        //   // Handle error if needed
-        //   console.error("Error saving message to the database.");
-        // }else{
-        //   socket.to(receiver_id).emit("new_message", messageData);
-        // }
       }
     );
+    socket.on("requestFriendsListWithStatuses", () => {
+      const callerUser = activeUsers.find(user => user.socketId === socket.id);
+      if (!callerUser) return;
+      updateFriendsStatusForSingleUser(callerUser)
+    });
 
     socket.on("disconnect", () => {
       console.log(`User DISCONNECTED: ${socket.id}`);
@@ -126,9 +122,23 @@ const initializeWebSocket = (): void => {
   });
 };
 
-/**
- * Sends updated friends list with statuses to all active users.
- */
+const updateFriendsStatusForSingleUser = async (user: any) => {
+  console.log(`User: ${user.username} wants info for his friends!`);
+  const currentUserFriends = await userService.getAllFriends(user.userId)
+
+  const friendsWithStatusForCurrUser = currentUserFriends.map((friend) => ({
+    ...friend,
+    isOnline: activeUsers.some(
+      (active) => active.userId === friend.user_id
+    ),
+  }));
+  io.to([user.socketId]).emit(
+    "friendsListWithStatuses",
+    friendsWithStatusForCurrUser);
+    console.log(`Server sent friendlist to user:${user.username}`);
+    
+}
+
 const updateFriendsStatusForAllUsers = async (userService: UsersService) => {
   for (const activeUser of activeUsers) {
     try {
